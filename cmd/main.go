@@ -1,20 +1,40 @@
-package main
+package singleton
 
 import (
-	"fmt"
-	"singleton-go/pkg/singleton"
+	"sync"
 )
 
-func main() {
-	fmt.Println("Singleton Pattern in Go")
+// ConfigManager manages application configuration settings.
+type ConfigManager struct {
+	sync.RWMutex
+	settings map[string]string
+}
 
-	// Get the singleton instance of ConfigManager
-	config := singleton.GetConfigManager()
-	fmt.Println("Database connection string:", config.Get("databaseConnectionString"))
+var instance *ConfigManager
+var once sync.Once
 
-	// Attempt to retrieve the same instance again
-	configAgain := singleton.GetConfigManager()
-	if config == configAgain {
-		fmt.Println("Confirmed that config and configAgain are the same instance.")
-	}
+// GetConfigManager returns the singleton instance of the ConfigManager.
+func GetConfigManager() *ConfigManager {
+	once.Do(func() {
+		instance = &ConfigManager{
+			settings: make(map[string]string),
+		}
+		// Assume settings are loaded here
+		instance.settings["databaseConnectionString"] = "Server=myServerAddress;Database=myDataBase;Uid=myUsername;Pwd=myPassword;"
+	})
+	return instance
+}
+
+// Get retrieves a setting value by key.
+func (c *ConfigManager) Get(key string) string {
+	c.RLock()
+	defer c.RUnlock()
+	return c.settings[key]
+}
+
+// Set updates a setting value by key.
+func (c *ConfigManager) Set(key, value string) {
+	c.Lock()
+	defer c.Unlock()
+	c.settings[key] = value
 }

@@ -1,9 +1,12 @@
 package singleton
 
-import "sync"
+import (
+	"sync"
+)
 
 // ConfigManager manages application configuration settings.
 type ConfigManager struct {
+	sync.RWMutex
 	settings map[string]string
 }
 
@@ -24,5 +27,14 @@ func GetConfigManager() *ConfigManager {
 
 // Get retrieves a setting value by key.
 func (c *ConfigManager) Get(key string) string {
+	c.RLock()
+	defer c.RUnlock()
 	return c.settings[key]
+}
+
+// Set updates a setting value by key.
+func (c *ConfigManager) Set(key, value string) {
+	c.Lock()
+	defer c.Unlock()
+	c.settings[key] = value
 }

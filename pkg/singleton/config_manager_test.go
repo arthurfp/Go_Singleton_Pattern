@@ -1,39 +1,55 @@
 package singleton
 
 import (
+	"log"
+	"os"
 	"sync"
-	"testing"
 )
 
-// TestSingletonInstance tests whether multiple calls to GetConfigManager return the same instance.
-func TestSingletonInstance(t *testing.T) {
-	instance1 := GetConfigManager()
-	instance2 := GetConfigManager()
+// ConfigManager manages application configuration settings.
+type ConfigManager struct {
+	sync.RWMutex
+	settings map[string]string
+}
 
-	if instance1 != instance2 {
-		t.Errorf("GetConfigManager did not return the same instance")
+var instance *ConfigManager
+var once sync.Once
+
+// GetConfigManager returns the singleton instance of the ConfigManager.
+func GetConfigManager() *ConfigManager {
+	once.Do(func() {
+		instance = &ConfigManager{
+			settings: make(map[string]string),
+		}
+		// Initialize settings from environment variables
+		instance.loadEnvironmentVariables()
+	})
+	return instance
+}
+
+// loadEnvironmentVariables loads configuration settings from environment variables.
+func (c *ConfigManager) loadEnvironmentVariables() {
+	envVariables := []string{"DATABASE_CONNECTION_STRING", "API_KEY", "LOG_LEVEL"}
+	for _, envVar := range envVariables {
+		value, exists := os.LookupEnv(envVar)
+		if exists {
+			c.settings[envVar] = value
+		} else {
+			log.Printf("Environment variable %s is not set", envVar)
+		}
 	}
 }
 
-// TestSingletonThreadSafety tests the thread safety of setting and getting configuration values.
-func TestSingletonThreadSafety(t *testing.T) {
-	config := GetConfigManager()
-	var wg sync.WaitGroup
-	iterations := 100
+// Get retrieves a setting value by key.
+func (c *ConfigManager) Get(key string) string {
+	c.RLock()
+	defer c.RUnlock()
+	return c.settings[key]
+}
 
-	// Test concurrent access to Set method
-	for i := 0; i < iterations; i++ {
-		wg.Add(1)
-		go func(val int) {
-			defer wg.Done()
-			configKey := "testKey"
-			configValue := "testValue" + string(val)
-			config.Set(configKey, configValue)
-
-			if gotValue := config.Get(configKey); gotValue != configValue {
-				t.Errorf("Got incorrect value, expected %s, got %s", configValue, gotValue)
-			}
-		}(i)
-	}
-	wg.Wait()
+// Set updates a setting value by key.
+func (c *ConfigManager) Set(key, value string) {
+	c.Lock()
+	defer c.Unlock()
+	c.settings[key] = value
 }

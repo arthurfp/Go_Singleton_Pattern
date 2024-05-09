@@ -1,55 +1,52 @@
 package singleton
 
 import (
-	"log"
-	"os"
 	"sync"
+	"testing"
 )
 
-// ConfigManager manages application configuration settings.
-type ConfigManager struct {
-	sync.RWMutex
-	settings map[string]string
+// TestSingletonInstance ensures that multiple calls to GetConfigManager return the same instance.
+func TestSingletonInstance(t *testing.T) {
+	manager1 := GetConfigManager()
+	manager2 := GetConfigManager()
+
+	if manager1 != manager2 {
+		t.Errorf("GetConfigManager did not return the same instance")
+	}
 }
 
-var instance *ConfigManager
-var once sync.Once
+// TestSingletonThreadSafety tests the thread safety of the Singleton implementation.
+func TestSingletonThreadSafety(t *testing.T) {
+	var wg sync.WaitGroup
+	iterations := 100
+	results := make([]*ConfigManager, iterations)
 
-// GetConfigManager returns the singleton instance of the ConfigManager.
-func GetConfigManager() *ConfigManager {
-	once.Do(func() {
-		instance = &ConfigManager{
-			settings: make(map[string]string),
-		}
-		// Initialize settings from environment variables
-		instance.loadEnvironmentVariables()
-	})
-	return instance
-}
+	for i := 0; i < iterations; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			results[index] = GetConfigManager()
+		}(i)
+	}
+	wg.Wait()
 
-// loadEnvironmentVariables loads configuration settings from environment variables.
-func (c *ConfigManager) loadEnvironmentVariables() {
-	envVariables := []string{"DATABASE_CONNECTION_STRING", "API_KEY", "LOG_LEVEL"}
-	for _, envVar := range envVariables {
-		value, exists := os.LookupEnv(envVar)
-		if exists {
-			c.settings[envVar] = value
-		} else {
-			log.Printf("Environment variable %s is not set", envVar)
+	// Check that all instances are the same
+	for _, instance := range results {
+		if instance != results[0] {
+			t.Errorf("Singleton instance is not the same across goroutines")
 		}
 	}
 }
 
-// Get retrieves a setting value by key.
-func (c *ConfigManager) Get(key string) string {
-	c.RLock()
-	defer c.RUnlock()
-	return c.settings[key]
-}
+// TestConfigSettings tests setting and getting configuration values.
+func TestConfigSettings(t *testing.T) {
+	manager := GetConfigManager()
+	testKey := "testKey"
+	testValue := "testValue"
 
-// Set updates a setting value by key.
-func (c *ConfigManager) Set(key, value string) {
-	c.Lock()
-	defer c.Unlock()
-	c.settings[key] = value
+	manager.Set(testKey, testValue)
+	retrievedValue := manager.Get(testKey)
+	if retrievedValue != testValue {
+		t.Errorf("Expected value %s, got %s", testValue, retrievedValue)
+	}
 }
